@@ -4,11 +4,11 @@ UI Styles and Constants
 Defines the color palette, fonts, and layout constants for the Apple Professional UI.
 """
 
-# Apple Pro Dark Palette
-BG_COLOR = "#000000"        # Pure Black
-SIDEBAR_COLOR = "#1C1C1E"   # Apple Dark Grey (Secondary System Background)
-CARD_BG = "#1C1C1E"         # Same as sidebar
-HEADER_COLOR = "#000000"    
+# Sea Blue Vibrant Palette
+BG_COLOR = "#0A1929"        # Deep Sea Blue
+SIDEBAR_COLOR = "#0D2847"   # Ocean Blue
+CARD_BG = "#132F4C"         # Lighter Sea Blue
+HEADER_COLOR = "#0A1929"    # Deep Sea Blue    
 
 # Apple System Colors
 APPLE_BLUE = "#0A84FF"      # System Blue

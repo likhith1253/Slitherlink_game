@@ -2,46 +2,90 @@
 Greedy CPU Logic
 ================
 AI Player implementation using Greedy Strategy and Sorting.
+Refactored for DAA Project: "No-Cheat" Heuristics.
 """
 
 from logic.validators import is_valid_move, count_edges_around_cell
-from daa.sorting import bubble_sort, insertion_sort, selection_sort
+from daa.sorting import bubble_sort, insertion_sort, selection_sort, merge_sort, quick_sort
 import random
 
 class GreedyCPU:
     def __init__(self, game_state):
         self.game_state = game_state
+        self.reasoning = "" # For "Thought Bubble"
         
     def make_move(self):
         """
-        Execute the best move based on greedy scoring.
+        Execute the best move based on lawful greedy scoring.
         """
-        possible_moves = self.get_all_valid_moves()
+        candidates, best_move = self.decide_move()
         
-        if not possible_moves:
+        if not best_move:
+            self.game_state.message = "CPU: No valid moves!"
             return None
             
-        # Score moves
+        # 3. Update Message with Reasoning (done in decide_move? No, best to do here before return)
+        # Re-get score? Or make decide_move return it.
+        # decide_move returns (candidates, best_move_tuple)
+        
+        # We need to regenerate reasoning or store it.
+        # Let's simple regenerate reasoning since it is fast.
+        score = 0
+        for m, s in candidates:
+            if m == best_move:
+                score = s
+                break
+                
+        self.generate_reasoning(best_move, score)
+        return best_move
+
+    def decide_move(self):
+        """
+        Calculates and returns (candidates, best_move).
+        candidates: List of (move, score) sorted.
+        best_move: tuple (u, v)
+        """
+        # 1. Get Candidate Moves
+        candidates = self.get_ranked_moves()
+        
+        if not candidates:
+            return [], None
+            
+        # 2. Select Best Move using Sorting (DAA Requirement)
+        moves_to_sort = candidates[:] 
+        n = len(moves_to_sort)
+        
+        if n < 20:
+            # Small N: Insertion Sort is optimal
+            sorted_moves = insertion_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+        elif n < 50:
+            # Medium N: Demonstrate basic O(N^2) sorts
+            if random.random() < 0.5:
+                sorted_moves = bubble_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+            else:
+                sorted_moves = selection_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+        else:
+            # Large N: Use O(N log N) sorts
+            if random.random() < 0.5:
+                sorted_moves = merge_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+            else:
+                sorted_moves = quick_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+                
+        best_move = sorted_moves[0][0]
+        return sorted_moves, best_move
+
+    def get_ranked_moves(self):
+        """
+        Returns all valid moves with their calculated scores.
+        """
+        possible_moves = self.get_all_valid_moves()
         scored_moves = []
+        
         for move in possible_moves:
-            score = self.calculate_score(move)
+            score = self.calculate_smart_score(move)
             scored_moves.append((move, score))
             
-        # DAA Requirement: Use Sorting Algorithm
-        # Sort by score descending
-        # We can alternate algorithms to show off
-        algo_choice = random.choice(['bubble', 'insertion', 'selection'])
-        
-        if algo_choice == 'bubble':
-            sorted_moves = bubble_sort(scored_moves, key=lambda x: x[1], reverse=True)
-        elif algo_choice == 'insertion':
-            sorted_moves = insertion_sort(scored_moves, key=lambda x: x[1], reverse=True)
-        else:
-            sorted_moves = selection_sort(scored_moves, key=lambda x: x[1], reverse=True)
-            
-        # Pick best
-        best_move = sorted_moves[0][0]
-        return best_move
+        return scored_moves
 
     def get_all_valid_moves(self):
         moves = []
@@ -68,49 +112,161 @@ class GreedyCPU:
                         moves.append((u, v))
         return moves
 
-    def calculate_score(self, move):
+    def calculate_smart_score(self, move):
+        """
+        True Greedy Heuristic based on local topology.
+        No cheating!
+        """
         u, v = move
         score = 0
         graph = self.game_state.graph
         clues = self.game_state.clues
         
-        # 0. Golden Path (Solution Edge)
-        # If this edge is part of the pre-generated solution, prioritize it heavily!
-        # This ensures the game progresses towards the known valid state.
-        edge_key = tuple(sorted((u, v)))
-        if hasattr(self.game_state, 'solution_edges') and edge_key in self.game_state.solution_edges:
-            score += 1000
+        # ---------------------------------------------------------
+        # DEADLOCK PREVENTION (User Request)
+        # ---------------------------------------------------------
+        # If the human JUST removed this edge, do not add it back immediately.
+        # Check independent of clues/neighbors.
+        if self.game_state.undo_stack:
+            last_u, last_v, last_action = self.game_state.undo_stack[-1]
+            if last_action == "remove":
+                if tuple(sorted((u, v))) == tuple(sorted((last_u, last_v))):
+                    return -2000 # Strict penalty to prevent infinite loops
+
+        # ---------------------------------------------------------
+        # 1. Clue Heuristics (The "0" and "3" Rules)
+        # ---------------------------------------------------------
         
-        # Temporarily add edge to check effects
-        # Note: We can't easily modify the real graph, so we simulate checks
-        
-        # 1. Clue Satisfaction
+        # Identify adjacent cells to this edge
+        adj_cells = []
         r1, c1 = u
         r2, c2 = v
-        cells_to_check = []
         if r1 == r2: # Horizontal
             c_min = min(c1, c2)
-            if r1 > 0: cells_to_check.append((r1-1, c_min))
-            if r1 < graph.rows: cells_to_check.append((r1, c_min))
+            if r1 > 0: adj_cells.append((r1-1, c_min)) # Above
+            if r1 < graph.rows: adj_cells.append((r1, c_min)) # Below
         else: # Vertical
             r_min = min(r1, r2)
-            if c1 > 0: cells_to_check.append((r_min, c1-1))
-            if c1 < graph.cols: cells_to_check.append((r_min, c1))
+            if c1 > 0: adj_cells.append((r_min, c1-1)) # Left
+            if c1 < graph.cols: adj_cells.append((r_min, c1)) # Right
             
-        for cell in cells_to_check:
+        for cell in adj_cells:
             if cell in clues:
-                current = count_edges_around_cell(graph, cell)
-                target = clues[cell]
-                # If we add this edge, current becomes current + 1
-                if current + 1 == target:
-                    score += 10 # Completes a clue
-                elif current + 1 < target:
-                    score += 2 # Helps towards clue
-                elif current + 1 > target:
-                    score -= 100 # Should be caught by validator, but huge penalty
+                val = clues[cell]
+                current_edges = count_edges_around_cell(graph, cell)
+                
+                # Rule "0": Never place edge next to 0
+                if val == 0:
+                    return -1000 # Instant rejection
+                
+                # NOTE FOR VIVA:
+                # The "Degree Constraint" (Degree > 2) is a critical Greedy Rule.
+                # In this code, it is implicitly handled by 'is_valid_move' in 'get_all_valid_moves'.
+                # Any move creating Degree > 2 is invalid and thus filtered out before scoring.
+                # Effectively, this assigns a score of -Infinity to such moves.
                     
-        # 2. Path Extension (Degree 1 -> 2)
-        if graph.get_degree(u) == 1: score += 3
-        if graph.get_degree(v) == 1: score += 3
+                # Rule "3":
+                if val == 3:
+                    score += 50
+                    # Corner Bonus: If adding this edge connects to existing edges to specific corner
+                    # (Simple check: if current_edges >= 1, it's connecting)
+                    if current_edges >= 1:
+                        score += 20
+                
+                # Rule "X" (Diagonal 3s or 3-0):
+                # Advanced: Check diagonals of this cell. 
+                # If we are filling a shared edge between high value clues, boost it.
+                
+                # Completion Bonus:
+                if current_edges + 1 == val:
+                    score += 15 # Completing a clue is generally good
+                elif current_edges + 1 > val:
+                    # This should be invalid via validator, but as heuristic:
+                    score -= 500
+
+        # ---------------------------------------------------------
+        # 2. Degree Heuristics (Continuity)
+        # ---------------------------------------------------------
+        
+        # Use existing degrees (before move)
+        deg_u = graph.get_degree(u)
+        deg_v = graph.get_degree(v)
+        
+        # Extensions are good: Degree 1 -> 2
+        if deg_u == 1: score += 100
+        if deg_v == 1: score += 100
+        
+        # New segments are neutral/low: Degree 0 -> 1
+        # We prefer extending lines over starting new ones
+        if deg_u == 0 and deg_v == 0:
+            score -= 10 # Slight penalty to discourage random scattering
+            
+        # ---------------------------------------------------------
+        # 3. Prevent Bad Cycles (Premature Loops)
+        # ---------------------------------------------------------
+        # Validator handles "Strict" cycle failure.
+        # But heuristic should also avoid partial closures that don't look right.
+        # (covered by degree checks mostly)
+
+        # ---------------------------------------------------------
+        # 4. EXPERT MODE: Energy Awareness
+        # ---------------------------------------------------------
+        if self.game_state.game_mode == "expert":
+            # Get the weight (cost) of this edge
+            edge_key = tuple(sorted(move))
+            cost = self.game_state.edge_weights.get(edge_key, 0)
+            
+            # Key Logic: Penalize High Cost Edges
+            # Cost ranges 1-9.
+            # Penalty: Cost * 5. (Range -5 to -45)
+            # This makes the CPU prioritize cheap edges (Green) over expensive ones (Red).
+            score -= (cost * 5)
         
         return score
+
+    def generate_reasoning(self, move, score):
+        """
+        Generate a "Thought Bubble" string explaining the move.
+        """
+        graph = self.game_state.graph
+        clues = self.game_state.clues
+        u, v = move
+        
+        # Analyze why we picked this
+        reasons = []
+        
+        # Check adj cells for clues
+        adj_cells = []
+        r1, c1 = u
+        r2, c2 = v
+        if r1 == r2: # Horizontal
+            c_min = min(c1, c2)
+            if r1 > 0: adj_cells.append((r1-1, c_min))
+            if r1 < graph.rows: adj_cells.append((r1, c_min))
+        else: # Vertical
+            r_min = min(r1, r2)
+            if c1 > 0: adj_cells.append((r_min, c1-1))
+            if c1 < graph.cols: adj_cells.append((r_min, c1))
+            
+        found_clue_reason = False
+        for cell in adj_cells:
+            if cell in clues:
+                val = clues[cell]
+                current = count_edges_around_cell(graph, cell)
+                if val == 3:
+                    reasons.append(f"satisfy '3' at {cell}")
+                    found_clue_reason = True
+                if current + 1 == val:
+                    reasons.append(f"complete clue {val}")
+                    found_clue_reason = True
+                    
+        if not found_clue_reason:
+            # Maybe path extension?
+            if graph.get_degree(u) == 1 or graph.get_degree(v) == 1:
+                reasons.append("extend the path")
+            else:
+                reasons.append("explore new path")
+                
+        reason_str = ", ".join(reasons)
+        self.game_state.message = f"CPU: Placed at {u}-{v} to {reason_str}."
+

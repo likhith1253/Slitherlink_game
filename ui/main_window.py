@@ -53,13 +53,18 @@ class MainWindow(tk.Tk):
 
     def show_home(self):
         self.clear_content()
-        HomePage(self.content_area, self.start_game).pack(expand=True, fill=tk.BOTH)
+        HomePage(self.content_area, self.start_game, self.show_help).pack(expand=True, fill=tk.BOTH)
 
     def show_stats(self):
         self.clear_content()
         StatsPage(self.content_area, self.show_home).pack(expand=True, fill=tk.BOTH)
 
-    def start_game(self, rows, cols, difficulty):
+    def start_game(self, rows, cols, difficulty, game_mode):
         self.clear_content()
-        game_state = GameState(rows, cols, difficulty)
+        game_state = GameState(rows, cols, difficulty, game_mode)
         GamePage(self.content_area, game_state, self.show_home).pack(expand=True, fill=tk.BOTH)
+
+    def show_help(self):
+        self.clear_content()
+        from ui.pages import HelpPage
+        HelpPage(self.content_area, self.show_home).pack(expand=True, fill=tk.BOTH)

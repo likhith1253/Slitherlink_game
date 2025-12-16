@@ -77,3 +77,69 @@ def selection_sort(items, key=lambda x: x, reverse=False):
                 
         items[i], items[extreme_idx] = items[extreme_idx], items[i]
     return items
+
+def merge_sort(items, key=lambda x: x, reverse=False):
+    """
+    Merge Sort implementation.
+    Time Complexity: O(N log N)
+    """
+    if len(items) <= 1:
+        return items
+        
+    mid = len(items) // 2
+    left = merge_sort(items[:mid], key, reverse)
+    right = merge_sort(items[mid:], key, reverse)
+    
+    return _merge(left, right, key, reverse)
+
+def _merge(left, right, key, reverse):
+    merged = []
+    i = j = 0
+    
+    while i < len(left) and j < len(right):
+        val_l = key(left[i])
+        val_r = key(right[j])
+        
+        should_pick_left = val_l >= val_r if reverse else val_l <= val_r
+        
+        if should_pick_left:
+            merged.append(left[i])
+            i += 1
+        else:
+            merged.append(right[j])
+            j += 1
+            
+    merged.extend(left[i:])
+    merged.extend(right[j:])
+    return merged
+
+def quick_sort(items, key=lambda x: x, reverse=False):
+    """
+    Quick Sort implementation.
+    Time Complexity: Average O(N log N)
+    """
+    if len(items) <= 1:
+        return items
+        
+    pivot = items[len(items) // 2]
+    pivot_val = key(pivot)
+    
+    left = []
+    middle = []
+    right = []
+    
+    for item in items:
+        val = key(item)
+        if val == pivot_val:
+            middle.append(item)
+            continue
+            
+        is_less = val < pivot_val
+        if reverse:
+            if not is_less: left.append(item)
+            else: right.append(item)
+        else:
+            if is_less: left.append(item)
+            else: right.append(item)
+            
+    return quick_sort(left, key, reverse) + middle + quick_sort(right, key, reverse)

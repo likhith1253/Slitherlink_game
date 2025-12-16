@@ -78,7 +78,9 @@ class BoardCanvas(tk.Canvas):
 
         # Draw Hint Edge
         if self.hint_edge:
-            self._draw_edge(self.hint_edge, APPLE_YELLOW, width=3)
+            # Use stored hint color if available, else default to yellow (though show_hint defaults it too)
+            color = getattr(self, 'hint_color', APPLE_YELLOW) 
+            self._draw_edge(self.hint_edge, color, width=3)
 
         # Draw Dots (Vertices)
         for r in range(rows + 1):
@@ -86,6 +88,28 @@ class BoardCanvas(tk.Canvas):
                 x = self.start_x + c * self.cell_size
                 y = self.start_y + r * self.cell_size
                 self.create_oval(x - DOT_RADIUS, y - DOT_RADIUS, x + DOT_RADIUS, y + DOT_RADIUS, fill=TEXT_COLOR, outline="")
+
+        # Draw Weights (All Modes)
+        if self.game_state.edge_weights:
+            for edge, weight in self.game_state.edge_weights.items():
+                u, v = edge
+                r1, c1 = u
+                r2, c2 = v
+                x1 = self.start_x + c1 * self.cell_size
+                y1 = self.start_y + r1 * self.cell_size
+                x2 = self.start_x + c2 * self.cell_size
+                y2 = self.start_y + r2 * self.cell_size
+                
+                mx = (x1 + x2) / 2
+                my = (y1 + y2) / 2
+                
+                # Offset slightly
+                if r1 == r2: # Horizontal
+                    my -= 10
+                else: # Vertical
+                    mx -= 10
+                    
+                self.create_text(mx, my, text=str(weight), font=FONT_SMALL, fill=TEXT_DIM)
 
     def _draw_edge(self, edge, color, width):
         (r1, c1), (r2, c2) = edge
@@ -108,10 +132,77 @@ class BoardCanvas(tk.Canvas):
         edge = self._get_closest_edge(event.x, event.y)
         if edge != self.hovered_edge:
             self.hovered_edge = edge
-            self.draw()
+            # self.draw() # Optimization: Only draw if needed? 
+            # Actually, draw() is fast enough usually.
+            
+            # TEACHER MODE
+            if self.game_state.teacher_mode and self.hovered_edge:
+                self.check_teacher_mode(self.hovered_edge)
+            else:
+                self.draw()
+
+    def check_teacher_mode(self, edge):
+        """
+        Highlight edge RED if it's a bad move.
+        """
+        # Simple heuristic check for "Bad Move" explanation
+        u, v = edge
+        if (tuple(sorted(edge)) in self.game_state.graph.edges):
+            self.draw() # Removing edge - usually fine
+            return
+            
+        # Check against basic rules
+        from logic.greedy_cpu import count_edges_around_cell
+        is_bad = False
+        reason = ""
+        
+        # 1. 0-clue rule
+        # ...reuse logic? simplified here for UI speed
+        adj_cells = self._get_adj_cells(u, v)
+        for cell in adj_cells:
+            if cell in self.game_state.clues:
+                if self.game_state.clues[cell] == 0:
+                    is_bad = True
+                    reason = "Bad Move: Violates '0' clue!"
+                    
+        self.draw()
+        if is_bad:
+            self._draw_edge(edge, APPLE_RED, width=3)
+            # Show tooltip text at mouse pos?
+            # For simplicity, we create text on canvas near edge
+            mx, my = self._get_midpoint(u, v)
+            self.create_text(mx, my - 15, text=reason, fill=APPLE_RED, font=FONT_SMALL)
+
+    def _get_adj_cells(self, u, v):
+        r1, c1 = u
+        r2, c2 = v
+        graph = self.game_state.graph
+        adj_cells = []
+        if r1 == r2: # Horizontal
+            c_min = min(c1, c2)
+            if r1 > 0: adj_cells.append((r1-1, c_min))
+            if r1 < graph.rows: adj_cells.append((r1, c_min))
+        else: # Vertical
+            r_min = min(r1, r2)
+            if c1 > 0: adj_cells.append((r_min, c1-1))
+            if c1 < graph.cols: adj_cells.append((r_min, c1))
+        return adj_cells
+        
+    def _get_midpoint(self, u, v):
+        r1, c1 = u
+        r2, c2 = v
+        x1 = self.start_x + c1 * self.cell_size
+        y1 = self.start_y + r1 * self.cell_size
+        x2 = self.start_x + c2 * self.cell_size
+        y2 = self.start_y + r2 * self.cell_size
+        return (x1+x2)/2, (y1+y2)/2
 
     def on_click(self, event):
         if self.game_state.game_over: return
+        
+        # If CPU turn, ignore clicks?
+        if "CPU" in self.game_state.turn: return
+        
         edge = self._get_closest_edge(event.x, event.y)
         if edge:
             u, v = edge
@@ -157,6 +248,60 @@ class BoardCanvas(tk.Canvas):
                         
         return best_edge
 
-    def show_hint(self, edge):
+    def show_hint(self, edge, color=APPLE_YELLOW):
         self.hint_edge = edge
+        self.hint_color = color
         self.draw()
+
+    # ------------------------------------------------------------------
+    # AI VISUALIZATION FEATURES
+    # ------------------------------------------------------------------
+    
+    def visualize_cpu_thinking(self, candidates, best_move, final_callback):
+        """
+        Show top candidates in Yellow, then pick Green.
+        """
+        # 1. Show Top 3 Candidates
+        self.draw() # Clear previous
+        
+        # Sort candidates to look meaningful (best first) or random?
+        # candidates is list of (move, score)
+        top_candidates = candidates[:3]
+        
+        for move, score in top_candidates:
+            self._draw_edge(move, APPLE_YELLOW, width=4)
+            
+        self.update() # Force redraw
+        
+        # 2. Wait 500ms
+        self.after(500, lambda: self._finalize_cpu_move(best_move, final_callback))
+        
+    def _finalize_cpu_move(self, best_move, callback):
+        # 3. Highlight Chosen Move in Green
+        self.draw()
+        self._draw_edge(best_move, APPLE_GREEN, width=4)
+        self.update()
+        
+        # 4. Wait 200ms then execute
+        self.after(200, lambda: callback())
+
+    def play_victory_animation(self):
+        """
+        Confetti effect!
+        """
+        colors = [APPLE_RED, APPLE_GREEN, APPLE_BLUE, APPLE_ORANGE, APPLE_PURPLE, APPLE_TEAL, APPLE_YELLOW]
+        width = self.winfo_width()
+        height = self.winfo_height()
+        
+        for _ in range(50):
+            x = __import__("random").randint(0, width)
+            y = __import__("random").randint(0, height // 2) # Start from top half
+            color = __import__("random").choice(colors)
+            size = __import__("random").randint(5, 10)
+            
+            self.create_oval(x, y, x+size, y+size, fill=color, outline="")
+            
+        # Schedule another burst? Or just one
+        # Let's do a simple loop for 1 second
+        # Using simple method for now.
+

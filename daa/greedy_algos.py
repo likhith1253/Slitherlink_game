@@ -6,8 +6,7 @@ Includes:
 1. Fractional Knapsack Problem
 2. Dijkstra's Shortest Path Algorithm
 3. Prim's Minimum Spanning Tree Algorithm
-4. Kruskal's Minimum Spanning Tree Algorithm
-5. Huffman Coding
+4. Huffman Coding
 
 Each algorithm is implemented with detailed comments explaining the greedy choice property.
 """
@@ -31,6 +30,7 @@ def fractional_knapsack(capacity, weights, values):
         
     Returns:
         float: Maximum total value.
+        list: List of chosen item indices (including partials).
     """
     n = len(weights)
     # Calculate value-to-weight ratio for each item
@@ -44,21 +44,24 @@ def fractional_knapsack(capacity, weights, values):
     
     total_value = 0.0
     current_weight = 0.0
+    selected_indices = []
     
     for item in items:
         if current_weight + item['weight'] <= capacity:
             # Take the whole item
             current_weight += item['weight']
             total_value += item['value']
+            selected_indices.append(item['index'])
         else:
             # Take fraction of the item
             remaining_capacity = capacity - current_weight
             fraction = remaining_capacity / item['weight']
             total_value += item['value'] * fraction
             current_weight += remaining_capacity
+            selected_indices.append(item['index'])
             break # Knapsack is full
             
-    return total_value
+    return total_value, selected_indices
 
 # -----------------------------------------------------------------------------
 # 2. Dijkstra's Shortest Path Algorithm
@@ -75,10 +78,12 @@ def dijkstra(graph, start_node):
         
     Returns:
         dict: Shortest distances to each node.
+        dict: Predecessors map for path reconstruction.
     """
     # Initialize distances to infinity
     distances = {node: float('infinity') for node in graph}
     distances[start_node] = 0
+    predecessors = {node: None for node in graph}
     
     # Priority queue to store (distance, node), ordered by distance
     pq = [(0, start_node)]
@@ -91,20 +96,22 @@ def dijkstra(graph, start_node):
             continue
             
         # Explore neighbors
-        for neighbor, weight in graph[current_node]:
-            distance = current_dist + weight
-            
-            # Relaxation step
-            if distance < distances[neighbor]:
-                distances[neighbor] = distance
-                heapq.heappush(pq, (distance, neighbor))
+        if current_node in graph:
+            for neighbor, weight in graph[current_node]:
+                distance = current_dist + weight
                 
-    return distances
+                # Relaxation step
+                if distance < distances[neighbor]:
+                    distances[neighbor] = distance
+                    predecessors[neighbor] = current_node
+                    heapq.heappush(pq, (distance, neighbor))
+                
+    return distances, predecessors
 
 # -----------------------------------------------------------------------------
 # 3. Prim's Minimum Spanning Tree Algorithm
 # -----------------------------------------------------------------------------
-def prim_mst(graph, start_node):
+def prim_mst(graph, start_node, max_nodes=None):
     """
     Finds the Minimum Spanning Tree (MST) of a connected, undirected graph.
     
@@ -113,6 +120,7 @@ def prim_mst(graph, start_node):
     Args:
         graph (dict): Adjacency list where graph[u] = [(v, weight), ...].
         start_node: Arbitrary starting node.
+        max_nodes (int, optional): Stop after visiting this many nodes.
         
     Returns:
         list: List of edges (u, v, weight) in the MST.
@@ -124,10 +132,14 @@ def prim_mst(graph, start_node):
     
     # Priority queue: (weight, from_node, to_node)
     edges_pq = []
-    for neighbor, weight in graph[start_node]:
-        heapq.heappush(edges_pq, (weight, start_node, neighbor))
+    if start_node in graph:
+        for neighbor, weight in graph[start_node]:
+            heapq.heappush(edges_pq, (weight, start_node, neighbor))
         
     while edges_pq:
+        if max_nodes and len(visited) >= max_nodes:
+            break
+            
         weight, u, v = heapq.heappop(edges_pq)
         
         if v in visited:
@@ -139,71 +151,14 @@ def prim_mst(graph, start_node):
         total_weight += weight
         
         # Add new edges from v to the queue
-        for next_node, next_weight in graph[v]:
-            if next_node not in visited:
-                heapq.heappush(edges_pq, (next_weight, v, next_node))
+        if v in graph:
+            for next_node, next_weight in graph[v]:
+                if next_node not in visited:
+                    heapq.heappush(edges_pq, (next_weight, v, next_node))
                 
-    return mst_edges, total_weight
+    return mst_edges, total_weight, visited
 
-# -----------------------------------------------------------------------------
-# 4. Kruskal's Minimum Spanning Tree Algorithm
-# -----------------------------------------------------------------------------
-class DisjointSet:
-    """Helper structure for Kruskal's Algorithm (Union-Find)."""
-    def __init__(self, vertices):
-        self.parent = {v: v for v in vertices}
-        self.rank = {v: 0 for v in vertices}
-        
-    def find(self, item):
-        if self.parent[item] != item:
-            self.parent[item] = self.find(self.parent[item]) # Path compression
-        return self.parent[item]
-        
-    def union(self, x, y):
-        root_x = self.find(x)
-        root_y = self.find(y)
-        
-        if root_x != root_y:
-            # Union by rank
-            if self.rank[root_x] < self.rank[root_y]:
-                self.parent[root_x] = root_y
-            elif self.rank[root_x] > self.rank[root_y]:
-                self.parent[root_y] = root_x
-            else:
-                self.parent[root_y] = root_x
-                self.rank[root_x] += 1
-            return True
-        return False
 
-def kruskal_mst(vertices, edges):
-    """
-    Finds the Minimum Spanning Tree (MST) using Kruskal's Algorithm.
-    
-    Greedy Choice: Sort all edges by weight and iteratively add the cheapest edge that doesn't form a cycle.
-    
-    Args:
-        vertices (list): List of all vertex labels.
-        edges (list): List of (u, v, weight) tuples.
-        
-    Returns:
-        list: List of edges in the MST.
-        float: Total weight.
-    """
-    mst_edges = []
-    total_weight = 0
-    ds = DisjointSet(vertices)
-    
-    # Sort edges by weight (Greedy Step)
-    sorted_edges = sorted(edges, key=lambda x: x[2])
-    
-    for u, v, weight in sorted_edges:
-        # Check if adding this edge forms a cycle
-        if ds.find(u) != ds.find(v):
-            ds.union(u, v)
-            mst_edges.append((u, v, weight))
-            total_weight += weight
-            
-    return mst_edges, total_weight
 
 # -----------------------------------------------------------------------------
 # 5. Huffman Coding

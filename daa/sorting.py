@@ -1,87 +1,27 @@
 """
 DAA Unit 2: Sorting Algorithms
 ==============================
-This module implements standard sorting algorithms required by the syllabus.
-These are used by the CPU player to sort candidate moves based on greedy scores.
+This module implements advanced sorting algorithms required for the project refactor.
+These are used by the CPU player, Hint System, and Save/Load components.
 
 Algorithms:
-1. Bubble Sort - O(N^2)
-2. Insertion Sort - O(N^2)
-3. Selection Sort - O(N^2)
+1. Merge Sort - O(N log N) - Used for Hint System
+2. Quick Sort (3-way Partition) - O(N log N) - Used for CPU Move Selection
+3. Heap Sort - O(N log N) - Used for Save/Load Optimization
 """
-
-def bubble_sort(items, key=lambda x: x, reverse=False):
-    """
-    Bubble Sort implementation.
-    Args:
-        items: List to sort.
-        key: Function to extract comparison key.
-        reverse: If True, sort descending.
-    Time Complexity: O(N^2)
-    """
-    n = len(items)
-    for i in range(n):
-        swapped = False
-        for j in range(0, n-i-1):
-            val_a = key(items[j])
-            val_b = key(items[j+1])
-            
-            should_swap = val_a < val_b if reverse else val_a > val_b
-            
-            if should_swap:
-                items[j], items[j+1] = items[j+1], items[j]
-                swapped = True
-        if not swapped:
-            break
-    return items
-
-def insertion_sort(items, key=lambda x: x, reverse=False):
-    """
-    Insertion Sort implementation.
-    Time Complexity: O(N^2)
-    """
-    for i in range(1, len(items)):
-        key_item = items[i]
-        key_val = key(key_item)
-        j = i - 1
-        
-        while j >= 0:
-            curr_val = key(items[j])
-            should_move = curr_val < key_val if reverse else curr_val > key_val
-            
-            if should_move:
-                items[j + 1] = items[j]
-                j -= 1
-            else:
-                break
-        items[j + 1] = key_item
-    return items
-
-def selection_sort(items, key=lambda x: x, reverse=False):
-    """
-    Selection Sort implementation.
-    Time Complexity: O(N^2)
-    """
-    n = len(items)
-    for i in range(n):
-        extreme_idx = i
-        extreme_val = key(items[i])
-        
-        for j in range(i+1, n):
-            curr_val = key(items[j])
-            should_update = curr_val > extreme_val if reverse else curr_val < extreme_val
-            
-            if should_update:
-                extreme_idx = j
-                extreme_val = curr_val
-                
-        items[i], items[extreme_idx] = items[extreme_idx], items[i]
-    return items
 
 def merge_sort(items, key=lambda x: x, reverse=False):
     """
     Merge Sort implementation.
+    Stable sort, good for linked lists or when random access is expensive.
+    
+    Args:
+        items: List to sort.
+        key: Function to extract comparison key.
+        reverse: If True, sort descending.
+        
     Time Complexity: O(N log N)
+    Space Complexity: O(N)
     """
     if len(items) <= 1:
         return items
@@ -100,6 +40,7 @@ def _merge(left, right, key, reverse):
         val_l = key(left[i])
         val_r = key(right[j])
         
+        # Stability: <= for ascending, >= for descending
         should_pick_left = val_l >= val_r if reverse else val_l <= val_r
         
         if should_pick_left:
@@ -113,10 +54,18 @@ def _merge(left, right, key, reverse):
     merged.extend(right[j:])
     return merged
 
-def quick_sort(items, key=lambda x: x, reverse=False):
+def quick_sort_3way(items, key=lambda x: x, reverse=False):
     """
-    Quick Sort implementation.
-    Time Complexity: Average O(N log N)
+    Quick Sort implementation using 3-way Partitioning (Dutch National Flag).
+    Efficient for arrays with many duplicate keys.
+    
+    Args:
+        items: List to sort.
+        key: Function to extract comparison key.
+        reverse: If True, sort descending.
+        
+    Time Complexity: O(N log N) average, O(N^2) worst case
+    Space Complexity: O(log N) stack space (recursive)
     """
     if len(items) <= 1:
         return items
@@ -124,22 +73,96 @@ def quick_sort(items, key=lambda x: x, reverse=False):
     pivot = items[len(items) // 2]
     pivot_val = key(pivot)
     
-    left = []
-    middle = []
-    right = []
+    less = []
+    equal = []
+    greater = []
     
     for item in items:
         val = key(item)
         if val == pivot_val:
-            middle.append(item)
-            continue
-            
-        is_less = val < pivot_val
-        if reverse:
-            if not is_less: left.append(item)
-            else: right.append(item)
+            equal.append(item)
+        elif val < pivot_val:
+            less.append(item)
         else:
-            if is_less: left.append(item)
-            else: right.append(item)
+            greater.append(item)
             
-    return quick_sort(left, key, reverse) + middle + quick_sort(right, key, reverse)
+    if reverse:
+        return quick_sort_3way(greater, key, reverse) + equal + quick_sort_3way(less, key, reverse)
+    else:
+        return quick_sort_3way(less, key, reverse) + equal + quick_sort_3way(greater, key, reverse)
+
+def heap_sort(items, key=lambda x: x, reverse=False):
+    """
+    Heap Sort implementation.
+    Sorts in-place (simulated here with list reconstruction for API consistency).
+    
+    Args:
+        items: List to sort.
+        key: Function to extract comparison key.
+        reverse: If True, sort descending.
+        
+    Time Complexity: O(N log N)
+    Space Complexity: O(1) auxiliary (if truly in-place), O(N) here for simplicity of returns.
+    """
+    n = len(items)
+    # Build max heap (or min heap depending on reverse)
+    # To sort Ascending: Build Max Heap, swap root to end.
+    # To sort Descending: Build Min Heap, swap root to end.
+    
+    # Copy items to avoid modifying original list in place unexpectedly if users expect a new list return
+    # (Though standard python sort is in-place, our functions return the list)
+    arr = items[:] 
+    
+    # Build heap (rearrange array)
+    for i in range(n // 2 - 1, -1, -1):
+        _heapify(arr, n, i, key, reverse)
+        
+    # One by one extract an element from heap
+    for i in range(n - 1, 0, -1):
+        # Move current root to end
+        arr[i], arr[0] = arr[0], arr[i]
+        
+        # call max heapify on the reduced heap
+        _heapify(arr, i, 0, key, reverse)
+        
+    return arr
+
+def _heapify(arr, n, i, key, reverse):
+    """
+    Heapify subtree rooted at index i.
+    n is size of heap.
+    """
+    largest = i  # Initialize largest as root
+    l = 2 * i + 1     # left = 2*i + 1
+    r = 2 * i + 2     # right = 2*i + 2
+    
+    # The logic below builds a Max Heap if we want Ascending sort (reverse=False)
+    # Because in Heap Sort, we pop the max to the end to build the sorted array from back to front.
+    # So:
+    # If reverse=False (Ascending): End array should be large elements. We pop Max. So Max Heap.
+    # If reverse=True (Descending): End array should be small elements. We pop Min. So Min Heap.
+    
+    root_val = key(arr[largest])
+    
+    if l < n:
+        l_val = key(arr[l])
+        
+        compare = l_val > root_val if not reverse else l_val < root_val
+        if compare:
+            largest = l
+            root_val = l_val # Update root_val for next comparison
+            
+    if r < n:
+        r_val = key(arr[r])
+        # Compare with the NEW largest
+        largest_val = key(arr[largest])
+        
+        compare = r_val > largest_val if not reverse else r_val < largest_val
+        if compare:
+            largest = r
+            
+    if largest != i:
+        arr[i], arr[largest] = arr[largest], arr[i]  # swap
+        
+        # Heapify the root.
+        _heapify(arr, n, largest, key, reverse)

@@ -14,10 +14,11 @@ from logic.game_state import GameState
 from ui.audio import play_sound
 
 class HomePage(tk.Frame):
-    def __init__(self, master, on_start_game, on_show_help):
+    def __init__(self, master, on_start_game, on_show_help, on_load_game):
         super().__init__(master, bg=BG_COLOR)
         self.on_start_game = on_start_game
         self.on_show_help = on_show_help
+        self.on_load_game = on_load_game
         self.selected_mode = None  # No default mode initially
         
         # Hero Section
@@ -43,7 +44,10 @@ class HomePage(tk.Frame):
         self.btn_greedy.pack(side=tk.LEFT, padx=5)
         
         # Help Button
-        HoverButton(self, text="How to Play", command=self.on_show_help, width=15, fg=TEXT_COLOR, bg=BG_COLOR).pack(pady=(20, 0))
+        HoverButton(self, text="How to Play", command=self.on_show_help, width=15, fg=TEXT_COLOR, bg=BG_COLOR).pack(pady=(20, 5))
+        
+        # Load Game Button
+        HoverButton(self, text="Load Game", command=self.on_load_game, width=15, fg=TEXT_COLOR, bg=BG_COLOR).pack(pady=(5, 0))
         
         # Difficulty Selection (Initially Hidden)
         self.diff_card = CardFrame(self, padx=40, pady=30)
@@ -174,6 +178,9 @@ class GamePage(tk.Frame):
         HoverButton(controls, text="Undo", command=self.undo, fg=WARNING_COLOR).pack(side=tk.LEFT, padx=5)
         HoverButton(controls, text="Redo", command=self.redo, fg=WARNING_COLOR).pack(side=tk.LEFT, padx=5)
         HoverButton(controls, text="Hint", command=self.hint, fg=SUCCESS_COLOR).pack(side=tk.LEFT, padx=5)
+        
+        HoverButton(controls, text="Save", command=self.save_game, fg=APPLE_BLUE).pack(side=tk.LEFT, padx=5)
+        
         HoverButton(controls, text="End Game", command=on_back, fg=ERROR_COLOR).pack(side=tk.RIGHT, padx=5)
         
         self.update_ui()
@@ -253,6 +260,14 @@ class GamePage(tk.Frame):
             self.update_ui()
         else:
             self.game_state.message = "No hints available."
+            self.update_ui()
+
+    def save_game(self):
+        if self.game_state.save_game():
+             messagebox.showinfo("Save Game", self.game_state.message)
+        else:
+             messagebox.showerror("Save Game", self.game_state.message)
+        if self.winfo_exists():
             self.update_ui()
 
     def update_ui(self):

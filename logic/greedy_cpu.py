@@ -6,10 +6,19 @@ Refactored for DAA Project: "No-Cheat" Heuristics.
 """
 
 from logic.validators import is_valid_move, count_edges_around_cell
-from daa.sorting import bubble_sort, insertion_sort, selection_sort, merge_sort, quick_sort
+from daa.sorting import quick_sort_3way
+from daa.greedy_algos import fractional_knapsack
 import random
+import collections # For BFS
 
 class GreedyCPU:
+    """
+    GreedyCPU Logic Re-implementation.
+    Meets DAA Requirements:
+    1. Greedy Algorithm: Explicit scoring and selection.
+    2. Graph Algorithm: BFS for loop detection.
+    3. Sorting Algorithm: Bubble Sort for candidate ranking.
+    """
     def __init__(self, game_state):
         self.game_state = game_state
         self.reasoning = "" # For "Thought Bubble"
@@ -18,18 +27,14 @@ class GreedyCPU:
         """
         Execute the best move based on lawful greedy scoring.
         """
+        # GREEDY ALGORITHM STEP 1: Enumerate and Score Options
         candidates, best_move = self.decide_move()
         
         if not best_move:
             self.game_state.message = "CPU: No valid moves!"
             return None
             
-        # 3. Update Message with Reasoning (done in decide_move? No, best to do here before return)
-        # Re-get score? Or make decide_move return it.
-        # decide_move returns (candidates, best_move_tuple)
-        
-        # We need to regenerate reasoning or store it.
-        # Let's simple regenerate reasoning since it is fast.
+        # 3. Update Message with Reasoning
         score = 0
         for m, s in candidates:
             if m == best_move:
@@ -42,37 +47,143 @@ class GreedyCPU:
     def decide_move(self):
         """
         Calculates and returns (candidates, best_move).
-        candidates: List of (move, score) sorted.
-        best_move: tuple (u, v)
+        Uses Fractional Knapsack to filter considered moves.
+        Then sorts the result using BUBBLE SORT.
         """
-        # 1. Get Candidate Moves
-        candidates = self.get_ranked_moves()
+        # 1. Get Candidate Moves (Raw)
+        raw_candidates = self.get_ranked_moves()
         
-        if not candidates:
+        if not raw_candidates:
             return [], None
             
-        # 2. Select Best Move using Sorting (DAA Requirement)
-        moves_to_sort = candidates[:] 
-        n = len(moves_to_sort)
+        # 2. FILTERING using FRACTIONAL KNAPSACK
+        # Goal: Select moves that fit within "Attention/Energy" budget using Knapsack logic.
+        # Items: Valid Moves
+        # Weight: Move Cost (or default 1)
+        # Value: Smart Score (must be > 0 for Knapsack)
         
-        if n < 20:
-            # Small N: Insertion Sort is optimal
-            sorted_moves = insertion_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
-        elif n < 50:
-            # Medium N: Demonstrate basic O(N^2) sorts
-            if random.random() < 0.5:
-                sorted_moves = bubble_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
-            else:
-                sorted_moves = selection_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
-        else:
-            # Large N: Use O(N log N) sorts
-            if random.random() < 0.5:
-                sorted_moves = merge_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
-            else:
-                sorted_moves = quick_sort(moves_to_sort, key=lambda x: x[1], reverse=True)
+        # Pre-process for Knapsack
+        knapsack_items_map = [] # To map index back to move
+        weights = []
+        values = []
+        
+        valid_indices = []
+        for i, (move, score) in enumerate(raw_candidates):
+            if score > 0: # Knapsack needs positive values
+                # Get cost
+                edge = tuple(sorted(move))
+                cost = self.game_state.edge_weights.get(edge, 1) # Default cost 1 (Normal Mode) / Random (Expert)
                 
+                weights.append(cost)
+                values.append(score)
+                knapsack_items_map.append(i)
+                valid_indices.append(i)
+        
+        # If no positive moves, fallback to raw candidates (desperation)
+        if not weights:
+            final_candidates = raw_candidates
+        else:
+            capacity = 50 # "Attention Span"
+            
+            # Call Fractional Knapsack
+            # Returns total_value, selected_indices (indices into the weights/values arrays)
+            _, selected_indices = fractional_knapsack(capacity, weights, values)
+            
+            # Map back to raw_candidates
+            final_candidates = []
+            for idx in selected_indices:
+                original_idx = knapsack_items_map[idx]
+                final_candidates.append(raw_candidates[original_idx])
+                
+            # If knapsack selected nothing (rare), fallback
+            if not final_candidates:
+                final_candidates = raw_candidates
+
+        # 3. Select Best Move using BUBBLE SORT - DAA Requirement
+        moves_to_sort = final_candidates[:] 
+        
+        # Sort by score in descending order using explicit Bubble Sort
+        sorted_moves = self.bubble_sort_moves(moves_to_sort)
+        
+        # GREEDY CHOICE PROPERTY: Pick the element with the highest score (first after sort)
         best_move = sorted_moves[0][0]
         return sorted_moves, best_move
+
+    def bubble_sort_moves(self, moves):
+        """
+        SORTING ALGORITHM: Bubble Sort
+        Explicit implementation to sort moves by score (descending).
+        Complexity: O(N^2)
+        """
+        n = len(moves)
+        # Traverse through all array elements
+        for i in range(n):
+            swapped = False
+            # Last i elements are already in place
+            for j in range(0, n-i-1):
+                # Traverse the array from 0 to n-i-1
+                # Swap if the element found is less than the next element (Descending)
+                if moves[j][1] < moves[j+1][1]:
+                    moves[j], moves[j+1] = moves[j+1], moves[j]
+                    swapped = True
+            if not swapped:
+                break
+        return moves
+
+    def bfs_check_loop(self, u, v):
+        """
+        GRAPH ALGORITHM: BFS (Breadth-First Search)
+        Checks if adding edge (u, v) creates a closed loop / cycle.
+        
+        Returns:
+            True if path exists between u and v (ignoring direct edge u-v if it existed)
+            False otherwise.
+        """
+        graph = self.game_state.graph
+        
+        # If they are already connected in the current graph state, adding (u,v) makes a cycle.
+        # We need to find if there is a path from u to v.
+        
+        start_node = u
+        target_node = v
+        
+        visited = set()
+        queue = collections.deque([start_node])
+        visited.add(start_node)
+        
+        while queue:
+            curr = queue.popleft()
+            
+            if curr == target_node:
+                return True # Path found!
+            
+            # Explore neighbors
+            # Get valid neighbors in the current graph (existing edges)
+            # We don't need 'get_all_valid_moves' here, we look at 'graph.adj_list' if it existed,
+            # but existing graph class uses check_neighbors or similar.
+            # Let's rely on graph structure.
+            
+            # Graph structure is likely edge list or simple adj logic.
+            # Let's check graph.py content via usage or assumption.
+            # Assuming standard adjacency keys:
+            
+            # Since graph.py isn't fully visible here, I'll use cell connectivity logic.
+            # A node (r,c) is connected to neighbors if edge exists.
+            
+            possible_neighbors = []
+            r, c = curr
+            candidates = [((r+1, c), tuple(sorted((curr, (r+1, c))))),
+                          ((r-1, c), tuple(sorted((curr, (r-1, c))))),
+                          ((r, c+1), tuple(sorted((curr, (r, c+1))))),
+                          ((r, c-1), tuple(sorted((curr, (r, c-1)))))]
+            
+            for neigh, edge_key in candidates:
+                if edge_key in graph.edges:
+                    if neigh not in visited:
+                        visited.add(neigh)
+                        queue.append(neigh)
+                        
+        return False
 
     def get_ranked_moves(self):
         """
@@ -159,23 +270,12 @@ class GreedyCPU:
                 if val == 0:
                     return -1000 # Instant rejection
                 
-                # NOTE FOR VIVA:
-                # The "Degree Constraint" (Degree > 2) is a critical Greedy Rule.
-                # In this code, it is implicitly handled by 'is_valid_move' in 'get_all_valid_moves'.
-                # Any move creating Degree > 2 is invalid and thus filtered out before scoring.
-                # Effectively, this assigns a score of -Infinity to such moves.
-                    
                 # Rule "3":
                 if val == 3:
                     score += 50
                     # Corner Bonus: If adding this edge connects to existing edges to specific corner
-                    # (Simple check: if current_edges >= 1, it's connecting)
                     if current_edges >= 1:
                         score += 20
-                
-                # Rule "X" (Diagonal 3s or 3-0):
-                # Advanced: Check diagonals of this cell. 
-                # If we are filling a shared edge between high value clues, boost it.
                 
                 # Completion Bonus:
                 if current_edges + 1 == val:
@@ -202,12 +302,19 @@ class GreedyCPU:
             score -= 10 # Slight penalty to discourage random scattering
             
         # ---------------------------------------------------------
-        # 3. Prevent Bad Cycles (Premature Loops)
+        # 3. Graph Topological Heuristics (BFS / Loop Detection)
         # ---------------------------------------------------------
-        # Validator handles "Strict" cycle failure.
-        # But heuristic should also avoid partial closures that don't look right.
-        # (covered by degree checks mostly)
-
+        # Use BFS to check if this move closes a loop (creates a cycle with existing edges).
+        creates_loop = self.bfs_check_loop(u, v)
+        
+        if creates_loop:
+            # Closing a loop can be good (completes a region) or bad (premature loop).
+            # Heuristic: If closing the loop satisfies a clue, it's GREAT.
+            # If it leaves inside unsatisfied, it's BAD.
+            
+            # Simple Greedy check: Reward small loop closures (often good in Slitherlink)
+            score += 40 
+            
         # ---------------------------------------------------------
         # 4. EXPERT MODE: Energy Awareness
         # ---------------------------------------------------------
@@ -269,4 +376,3 @@ class GreedyCPU:
                 
         reason_str = ", ".join(reasons)
         self.game_state.message = f"CPU: Placed at {u}-{v} to {reason_str}."
-

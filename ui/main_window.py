@@ -53,7 +53,7 @@ class MainWindow(tk.Tk):
 
     def show_home(self):
         self.clear_content()
-        HomePage(self.content_area, self.start_game, self.show_help).pack(expand=True, fill=tk.BOTH)
+        HomePage(self.content_area, self.start_game, self.show_help, self.load_game).pack(expand=True, fill=tk.BOTH)
 
     def show_stats(self):
         self.clear_content()
@@ -63,6 +63,19 @@ class MainWindow(tk.Tk):
         self.clear_content()
         game_state = GameState(rows, cols, difficulty, game_mode)
         GamePage(self.content_area, game_state, self.show_home).pack(expand=True, fill=tk.BOTH)
+
+    def load_game(self):
+        # Create a dummy state to attempt load
+        # We need default params, but they will be overwritten by load_game
+        game_state = GameState(5, 5, "Medium", "vs_cpu") 
+        if game_state.load_game():
+            self.clear_content()
+            GamePage(self.content_area, game_state, self.show_home).pack(expand=True, fill=tk.BOTH)
+        else:
+            # If load failed, the message is in game_state.message
+            # We should probably show it, but for now just print or ignore since HomePage is still there.
+            import tkinter.messagebox
+            tkinter.messagebox.showerror("Load Game", game_state.message)
 
     def show_help(self):
         self.clear_content()

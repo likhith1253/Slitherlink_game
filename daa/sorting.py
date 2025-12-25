@@ -6,7 +6,6 @@ These are used by the CPU player, Hint System, and Save/Load components.
 
 Algorithms:
 1. Merge Sort - O(N log N) - Used for Hint System
-2. Quick Sort (3-way Partition) - O(N log N) - Used for CPU Move Selection
 3. Heap Sort - O(N log N) - Used for Save/Load Optimization
 """
 
@@ -53,43 +52,6 @@ def _merge(left, right, key, reverse):
     merged.extend(left[i:])
     merged.extend(right[j:])
     return merged
-
-def quick_sort_3way(items, key=lambda x: x, reverse=False):
-    """
-    Quick Sort implementation using 3-way Partitioning (Dutch National Flag).
-    Efficient for arrays with many duplicate keys.
-    
-    Args:
-        items: List to sort.
-        key: Function to extract comparison key.
-        reverse: If True, sort descending.
-        
-    Time Complexity: O(N log N) average, O(N^2) worst case
-    Space Complexity: O(log N) stack space (recursive)
-    """
-    if len(items) <= 1:
-        return items
-        
-    pivot = items[len(items) // 2]
-    pivot_val = key(pivot)
-    
-    less = []
-    equal = []
-    greater = []
-    
-    for item in items:
-        val = key(item)
-        if val == pivot_val:
-            equal.append(item)
-        elif val < pivot_val:
-            less.append(item)
-        else:
-            greater.append(item)
-            
-    if reverse:
-        return quick_sort_3way(greater, key, reverse) + equal + quick_sort_3way(less, key, reverse)
-    else:
-        return quick_sort_3way(less, key, reverse) + equal + quick_sort_3way(greater, key, reverse)
 
 def heap_sort(items, key=lambda x: x, reverse=False):
     """

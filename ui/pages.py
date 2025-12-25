@@ -12,6 +12,8 @@ from ui.components import HoverButton, CardFrame
 from ui.board_canvas import BoardCanvas
 from logic.game_state import GameState
 from ui.audio import play_sound
+from ui.inspector import SaveInspector
+from ui.benchmark_page import BenchmarkPage
 
 class HomePage(tk.Frame):
     def __init__(self, master, on_start_game, on_show_help, on_load_game):
@@ -49,6 +51,9 @@ class HomePage(tk.Frame):
         # Load Game Button
         HoverButton(self, text="Load Game", command=self.on_load_game, width=15, fg=TEXT_COLOR, bg=BG_COLOR).pack(pady=(5, 0))
         
+        # Benchmark Button
+        HoverButton(self, text="Benchmark", command=self.open_benchmark, width=15, fg=APPLE_ORANGE, bg=BG_COLOR).pack(pady=(5, 0))
+        
         # Difficulty Selection (Initially Hidden)
         self.diff_card = CardFrame(self, padx=40, pady=30)
         # Don't pack immediately
@@ -80,6 +85,9 @@ class HomePage(tk.Frame):
     
     def start_with_mode(self, rows, cols, difficulty):
         self.on_start_game(rows, cols, difficulty, self.selected_mode)
+        
+    def open_benchmark(self):
+        BenchmarkPage(self)
 
 class HelpPage(tk.Frame):
     def __init__(self, master, on_back):
@@ -103,11 +111,7 @@ class HelpPage(tk.Frame):
         
         tk.Label(frame_basics, text="The Rules", font=FONT_BODY, bg=CARD_BG, fg=ACCENT_COLOR).pack(anchor="w")
         
-        try:
-            self.img_basics = tk.PhotoImage(file="assets/help_basics.png").subsample(3, 3)
-            tk.Label(frame_basics, image=self.img_basics, bg=CARD_BG).pack(side=tk.LEFT, padx=10)
-        except Exception as e:
-            print(f"Error loading image: {e}")
+
             
         text_basics = """
         1. Connect adjacent dots with vertical or horizontal lines.
@@ -124,11 +128,7 @@ class HelpPage(tk.Frame):
         
         tk.Label(frame_greedy, text="Expert Level (Greedy)", font=FONT_BODY, bg=CARD_BG, fg=APPLE_ORANGE).pack(anchor="w")
         
-        try:
-            self.img_greedy = tk.PhotoImage(file="assets/help_greedy.png").subsample(3, 3)
-            tk.Label(frame_greedy, image=self.img_greedy, bg=CARD_BG).pack(side=tk.LEFT, padx=10)
-        except:
-            pass
+
             
         text_greedy = """
         1. You have limited ENERGY (Knapsack Capacity).
@@ -180,10 +180,26 @@ class GamePage(tk.Frame):
         HoverButton(controls, text="Hint", command=self.hint, fg=SUCCESS_COLOR).pack(side=tk.LEFT, padx=5)
         
         HoverButton(controls, text="Save", command=self.save_game, fg=APPLE_BLUE).pack(side=tk.LEFT, padx=5)
+        HoverButton(controls, text="Inspect", command=self.inspect_save, fg=TEXT_COLOR).pack(side=tk.LEFT, padx=5)
         
         HoverButton(controls, text="End Game", command=on_back, fg=ERROR_COLOR).pack(side=tk.RIGHT, padx=5)
         
+        
+        # Teacher Mode Toggle
+        self.btn_teacher = HoverButton(controls, text="Teacher Mode: OFF", command=self.toggle_teacher_mode, fg=TEXT_DIM, width=15)
+        self.btn_teacher.pack(side=tk.RIGHT, padx=5)
+
         self.update_ui()
+
+    def toggle_teacher_mode(self):
+        self.game_state.teacher_mode = not self.game_state.teacher_mode
+        state = "ON" if self.game_state.teacher_mode else "OFF"
+        color = APPLE_PURPLE if self.game_state.teacher_mode else TEXT_DIM
+        self.btn_teacher.config(text=f"Teacher Mode: {state}", fg=color)
+        
+        if self.game_state.teacher_mode:
+            messagebox.showinfo("Teacher Mode", "Bubble Sort Visualization Enabled.\nWatch the CPU's decision making process!")
+
 
     def on_move(self, u, v):
         success = self.game_state.make_move(u, v)
@@ -217,11 +233,48 @@ class GamePage(tk.Frame):
             self.check_game_over()
 
     def finalize_cpu_move(self, move):
+        # Visualization for Teacher Mode
+        if self.game_state.teacher_mode and hasattr(self.game_state.cpu, 'last_sort_debug_info'):
+            debug_info = self.game_state.cpu.last_sort_debug_info
+            if debug_info:
+                self.show_sort_visualization(debug_info)
+                # Delay actual move to let user see visualization
+                self.after(3000, lambda: self._execute_move(move))
+                return
+
+        self._execute_move(move)
+
+    def _execute_move(self, move):
         u, v = move
         self.game_state.make_move(u, v, is_cpu=True)
         play_sound("move")
         self.update_ui()
         self.check_game_over()
+        
+    def show_sort_visualization(self, debug_info):
+        raw = debug_info.get("raw", [])
+        sorted_moves = debug_info.get("sorted", [])
+        
+        # Create a popup or drawing on canvas
+        # Let's use a nice message box for simplicity but clear info
+        
+        msg = "BUBBLE SORT VISUALIZATION\n-------------------------\n"
+        msg += "1. RAW CANDIDATES (Unsorted):\n"
+        for m, s in raw[:5]:
+            msg += f"   Move {m}: Score {s}\n"
+        if len(raw) > 5: msg += "   ... (more)\n"
+            
+        msg += "\n2. APPLYING BUBBLE SORT (O(N^2))...\n"
+        
+        msg += "\n3. SORTED MOVES (Best First):\n"
+        for m, s in sorted_moves[:5]:
+            msg += f"   Move {m}: Score {s}\n"
+            
+        msg += "\nCPU Choice: Index 0 (Greedy Property)"
+        
+        # Use a non-blocking toplevel if possible, but messagebox is easiest for "Showcase"
+        messagebox.showinfo("Teacher Mode: Bubble Sort", msg)
+
 
     def check_game_over(self):
         if self.game_state.game_over:
@@ -248,7 +301,7 @@ class GamePage(tk.Frame):
             self.update_ui()
 
     def hint(self):
-        move, reason = self.game_state.get_hint()
+        move, reason, hint_log = self.game_state.get_hint()
         if move:
             color = APPLE_GREEN
             if "Remove" in reason:
@@ -258,6 +311,10 @@ class GamePage(tk.Frame):
             
             self.game_state.message = f"Hint: {reason}"
             self.update_ui()
+            
+            # Show Showcase Log
+            if hint_log:
+                messagebox.showinfo("Hint Logic: Merge Sort", hint_log)
         else:
             self.game_state.message = "No hints available."
             self.update_ui()
@@ -269,6 +326,9 @@ class GamePage(tk.Frame):
              messagebox.showerror("Save Game", self.game_state.message)
         if self.winfo_exists():
             self.update_ui()
+
+    def inspect_save(self):
+        SaveInspector(self, self.game_state)
 
     def update_ui(self):
         self.canvas.draw()

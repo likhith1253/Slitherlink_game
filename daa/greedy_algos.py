@@ -214,3 +214,55 @@ def huffman_coding(char_freqs):
         
     generate_codes(root, "")
     return codes
+
+# -----------------------------------------------------------------------------
+# 6. Job Sequencing with Deadlines
+# -----------------------------------------------------------------------------
+def job_sequencing_with_deadlines(jobs):
+    """
+    Solves the Job Sequencing with Deadlines problem using a Greedy approach.
+    
+    Greedy Choice: Always select the available job with the highest profit.
+    
+    Args:
+        jobs (list): List of dicts, each with keys 'id', 'deadline', 'profit'.
+                     Example: [{'id': 1, 'deadline': 2, 'profit': 100}, ...]
+        
+    Returns:
+        list: Sequence of job IDs maximizing total profit.
+        int: Total profit.
+    """
+    # 1. Sort all jobs in descending order of profit (Greedy Step)
+    jobs.sort(key=lambda x: x['profit'], reverse=True)
+    
+    # 2. Find maximum deadline to determine total time slots available
+    max_deadline = 0
+    for job in jobs:
+        if job['deadline'] > max_deadline:
+            max_deadline = job['deadline']
+            
+    # Time slots: index i represents time slot [i, i+1]
+    # Initialize slots as -1 (empty)
+    # We use size max_deadline because deadlines are 1-based usually
+    # e.g., deadline 2 means can be done in [0,1] or [1,2].
+    result = [-1] * max_deadline
+    slot_filled = [False] * max_deadline
+    
+    total_profit = 0
+    job_sequence = []
+    
+    # 3. Iterate through sorted jobs
+    for job in jobs:
+        # Find a free time slot for this job (starting from its deadline - 1 down to 0)
+        # Because deadline is the *latest* it can finish.
+        # e.g. deadline 2 needs slot 0 or 1. We prefer 1 to save 0 for stricter deadlines.
+        for j in range(min(max_deadline, job['deadline']) - 1, -1, -1):
+            if not slot_filled[j]:
+                result[j] = job['id']
+                slot_filled[j] = True
+                total_profit += job['profit']
+                break
+                
+    # Filter empty slots and return results
+    final_sequence = [job_id for job_id in result if job_id != -1]
+    return final_sequence, total_profit

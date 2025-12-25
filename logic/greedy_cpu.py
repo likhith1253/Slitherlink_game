@@ -6,18 +6,16 @@ Refactored for DAA Project: "No-Cheat" Heuristics.
 """
 
 from logic.validators import is_valid_move, count_edges_around_cell
-from daa.sorting import quick_sort_3way
+# from daa.sorting import quick_sort_3way
 from daa.greedy_algos import fractional_knapsack
 import random
 import collections # For BFS
 
 class GreedyCPU:
     """
-    GreedyCPU Logic Re-implementation.
-    Meets DAA Requirements:
-    1. Greedy Algorithm: Explicit scoring and selection.
-    2. Graph Algorithm: BFS for loop detection.
-    3. Sorting Algorithm: Bubble Sort for candidate ranking.
+    Our smarter CPU player. 
+    It uses Greedy choices and Graph traversal to play.
+    It sorts moves to pick the best one.
     """
     def __init__(self, game_state):
         self.game_state = game_state
@@ -57,10 +55,9 @@ class GreedyCPU:
             return [], None
             
         # 2. FILTERING using FRACTIONAL KNAPSACK
-        # Goal: Select moves that fit within "Attention/Energy" budget using Knapsack logic.
-        # Items: Valid Moves
-        # Weight: Move Cost (or default 1)
-        # Value: Smart Score (must be > 0 for Knapsack)
+        # We treat moves like "items" to put in a knapsack.
+        # Weight = Cost of the edge
+        # Value = Score we gave the move
         
         # Pre-process for Knapsack
         knapsack_items_map = [] # To map index back to move
@@ -105,15 +102,22 @@ class GreedyCPU:
         # Sort by score in descending order using explicit Bubble Sort
         sorted_moves = self.bubble_sort_moves(moves_to_sort)
         
+        # Store for Teacher Mode / Visualization
+        self.last_sort_debug_info = {
+            "raw": final_candidates,
+            "sorted": sorted_moves
+        }
+        
         # GREEDY CHOICE PROPERTY: Pick the element with the highest score (first after sort)
-        best_move = sorted_moves[0][0]
-        return sorted_moves, best_move
-
+        if sorted_moves:
+             best_move = sorted_moves[0][0]
+             return sorted_moves, best_move
+        else:
+             return [], None
     def bubble_sort_moves(self, moves):
         """
-        SORTING ALGORITHM: Bubble Sort
-        Explicit implementation to sort moves by score (descending).
-        Complexity: O(N^2)
+        Sorts the moves so the best one is first.
+        Using Bubble Sort algorithm.
         """
         n = len(moves)
         # Traverse through all array elements
@@ -132,12 +136,8 @@ class GreedyCPU:
 
     def bfs_check_loop(self, u, v):
         """
-        GRAPH ALGORITHM: BFS (Breadth-First Search)
-        Checks if adding edge (u, v) creates a closed loop / cycle.
-        
-        Returns:
-            True if path exists between u and v (ignoring direct edge u-v if it existed)
-            False otherwise.
+        Uses Breadth-First Search (BFS) to see if these two points 
+        are already connected. If they are, adding a line makes a loop.
         """
         graph = self.game_state.graph
         
@@ -225,8 +225,8 @@ class GreedyCPU:
 
     def calculate_smart_score(self, move):
         """
-        True Greedy Heuristic based on local topology.
-        No cheating!
+        Gives a score to a move. Higher score means it's a better move.
+        This is our "Greedy" logic.
         """
         u, v = move
         score = 0

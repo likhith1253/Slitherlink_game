@@ -10,8 +10,9 @@ from ui.pages import HomePage, GamePage, StatsPage
 from logic.game_state import GameState
 
 class MainWindow(tk.Tk):
-    def __init__(self):
+    def __init__(self, cpu_algorithm="knapsack"):
         super().__init__()
+        self.cpu_algorithm = cpu_algorithm
         self.title("Loopy DAA - Slitherlink AI Duel")
         self.geometry("900x700")
         self.configure(bg=BG_COLOR)
@@ -61,13 +62,13 @@ class MainWindow(tk.Tk):
 
     def start_game(self, rows, cols, difficulty, game_mode):
         self.clear_content()
-        game_state = GameState(rows, cols, difficulty, game_mode)
+        game_state = GameState(rows, cols, difficulty, game_mode, cpu_algorithm=self.cpu_algorithm)
         GamePage(self.content_area, game_state, self.show_home).pack(expand=True, fill=tk.BOTH)
 
     def load_game(self):
         # Create a dummy state to attempt load
         # We need default params, but they will be overwritten by load_game
-        game_state = GameState(5, 5, "Medium", "vs_cpu") 
+        game_state = GameState(5, 5, "Medium", "vs_cpu", cpu_algorithm=self.cpu_algorithm) 
         if game_state.load_game():
             self.clear_content()
             GamePage(self.content_area, game_state, self.show_home).pack(expand=True, fill=tk.BOTH)

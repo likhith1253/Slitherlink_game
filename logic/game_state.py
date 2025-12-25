@@ -23,7 +23,7 @@ from daa.greedy_algos import prim_mst, dijkstra, huffman_coding
 from daa.sorting import merge_sort, heap_sort
 
 class GameState:
-    def __init__(self, rows=5, cols=5, difficulty="Medium", game_mode="vs_cpu"):
+    def __init__(self, rows=5, cols=5, difficulty="Medium", game_mode="vs_cpu", cpu_algorithm="knapsack"):
         self.rows = rows
         self.cols = cols
         self.difficulty = difficulty
@@ -33,7 +33,17 @@ class GameState:
         self.graph = Graph(rows, cols)
         self.clues = {}
         # CPU is active in vs_cpu AND expert mode (Duel)
-        self.cpu = GreedyCPU(self) if game_mode in ["vs_cpu", "expert"] else None
+        if game_mode in ["vs_cpu", "expert"]:
+            if cpu_algorithm == "job_seq":
+                from logic.greedy_cpu_job_seq import GreedyCPUJobSeq
+                self.cpu = GreedyCPUJobSeq(self)
+                print("Using CPU: Job Sequencing")
+            else:
+                self.cpu = GreedyCPU(self)
+                print("Using CPU: Fractional Knapsack")
+        else:
+            self.cpu = None
+
         self.stats_mgr = StatisticsManager()
         
         # Greedy Mode Mechanics
@@ -220,7 +230,9 @@ class GameState:
                 
                 if path:
                     first_step_node = path[-1] # The one connected to start
-                    return (start, first_step_node), "Hint: Connect this loose end!"
+                    if path:
+                        first_step_node = path[-1] # The one connected to start
+                        return (start, first_step_node), "Hint: Connect this loose end!", None
 
         # ---------------------------------------------------------
         # 2. Refactored Hint System using MERGE SORT (DAA)
@@ -253,14 +265,26 @@ class GameState:
              pass 
 
         if not candidates:
-            return None, "No hints available or puzzle solved."
+            return None, "No hints available or puzzle solved.", None
             
         # Use MERGE SORT to rank candidates by score
         # Using merge_sort from daa.sorting
         sorted_candidates = merge_sort(candidates, key=lambda x: x['score'], reverse=True)
         
         best_candidate = sorted_candidates[0]
-        return best_candidate['move'], best_candidate['msg']
+        
+        # Build Debug Info for Showcase
+        hint_log = "MERGE SORT HINT LOG:\n"
+        hint_log += "Generated Candidates:\n"
+        for c in candidates:
+            hint_log += f" - {c['msg']} (Score: {c['score']})\n"
+            
+        hint_log += "\nApplying O(N log N) Merge Sort...\n\n"
+        hint_log += "Sorted Priority:\n"
+        for i, c in enumerate(sorted_candidates):
+            hint_log += f" {i+1}. {c['msg']} (Score: {c['score']})\n"
+            
+        return best_candidate['move'], best_candidate['msg'], hint_log
 
     def _generate_clues(self):
         """

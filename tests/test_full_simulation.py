@@ -52,7 +52,7 @@ def test_vs_cpu_mode():
     
     # 5. Hint Test
     log("Testing Hint...")
-    hint_move, reason = gs.get_hint()
+    hint_move, reason, _hint_log = gs.get_hint()
     log(f"Hint received: {hint_move} because {reason}")
     assert hint_move is not None or "No solution" in reason
     

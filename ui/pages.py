@@ -12,7 +12,7 @@ from ui.components import HoverButton, CardFrame
 from ui.board_canvas import BoardCanvas
 from logic.game_state import GameState
 from ui.audio import play_sound
-from ui.inspector import SaveInspector
+from ui.inspector import MatchHistoryInspector
 from ui.benchmark_page import BenchmarkPage
 
 class HomePage(tk.Frame):
@@ -180,7 +180,7 @@ class GamePage(tk.Frame):
         HoverButton(controls, text="Hint", command=self.hint, fg=SUCCESS_COLOR).pack(side=tk.LEFT, padx=5)
         
         HoverButton(controls, text="Save", command=self.save_game, fg=APPLE_BLUE).pack(side=tk.LEFT, padx=5)
-        HoverButton(controls, text="Inspect", command=self.inspect_save, fg=TEXT_COLOR).pack(side=tk.LEFT, padx=5)
+        HoverButton(controls, text="Match History", command=self.inspect_save, fg=TEXT_COLOR).pack(side=tk.LEFT, padx=5)
         
         HoverButton(controls, text="End Game", command=on_back, fg=ERROR_COLOR).pack(side=tk.RIGHT, padx=5)
         
@@ -328,7 +328,7 @@ class GamePage(tk.Frame):
             self.update_ui()
 
     def inspect_save(self):
-        SaveInspector(self, self.game_state)
+        MatchHistoryInspector(self, self.game_state)
 
     def update_ui(self):
         self.canvas.draw()

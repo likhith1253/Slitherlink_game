@@ -15,7 +15,8 @@ class StatisticsManager:
             "games_played": 0,
             "wins_vs_cpu": 0,
             "losses": 0,
-            "fastest_win": None
+            "fastest_win": None,
+            "match_history": [] # List of dicts
         }
         self.load_stats()
 
@@ -24,6 +25,9 @@ class StatisticsManager:
             try:
                 with open(STATS_FILE, 'r') as f:
                     self.stats = json.load(f)
+                    # Ensure match_history exists for old saves
+                    if "match_history" not in self.stats:
+                        self.stats["match_history"] = []
             except:
                 pass # Keep defaults if error
 
@@ -32,8 +36,11 @@ class StatisticsManager:
         with open(STATS_FILE, 'w') as f:
             json.dump(self.stats, f, indent=4)
 
-    def record_game(self, winner, time_taken=None):
+    def record_game(self, winner, time_taken=None, moves_count=0):
+        import time
         self.stats["games_played"] += 1
+        
+        # Update Aggregate Stats
         if winner == "Player 1 (Human)":
             self.stats["wins_vs_cpu"] += 1
             if time_taken:
@@ -42,4 +49,14 @@ class StatisticsManager:
                     self.stats["fastest_win"] = time_taken
         elif winner == "Player 2 (CPU)":
             self.stats["losses"] += 1
+            
+        # Record Match History
+        match_record = {
+            "timestamp": time.time(),
+            "winner": winner,
+            "duration": time_taken if time_taken else 0,
+            "moves": moves_count
+        }
+        self.stats["match_history"].append(match_record)
+        
         self.save_stats()

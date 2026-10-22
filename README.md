@@ -24,18 +24,35 @@ This project explicitly demonstrates the following Unit 1 & 2 topics:
 4.  **Asymptotic Analysis**: Complexity notes are provided in `daa/analysis_notes.py`.
 
 ## How to Run
-1.  Ensure you have Python 3.x installed.
-2.  Run the main script:
+1.  Python 3.9+ with Tkinter (included with the standard Windows/macOS installers; `sudo apt install python3-tk` on Debian/Ubuntu).
+2.  Start the game:
     ```bash
     python main.py
     ```
+3.  Optional charts (`benchmark_viz.py`, `compare_algos.py`, `correctness_proof_viz.py`) need `pip install matplotlib numpy networkx`.
+
+## Tests
+```bash
+pip install pytest
+python -m pytest tests
+```
+Five tests cover job sequencing with deadlines and headless game simulations (human vs CPU move/undo/hint, expert-mode energy, CPU loop prevention). The Tkinter interface itself is not covered by automated tests.
 
 ## Project Structure
 *   `main.py`: Entry point.
 *   `ui/`: User Interface components (Tkinter).
-*   `logic/`: Core game logic (GameState, Validators, CPU).
-*   `daa/`: Algorithms implementation (Sorting, Graphs).
-*   `data/`: Stores game statistics.
+*   `logic/`: Core game logic (GameState, Validators, CPU players).
+*   `daa/`: Algorithms implementation (Sorting, Graphs, Greedy algorithms).
+*   `data/`: Stores game statistics (`statistics.json`, includes a match history).
+*   `tests/`: Automated tests.
+
+## Limitations
+*   No benchmark numbers are committed: run `benchmark_viz.py` / `compare_algos.py` to measure the algorithms on your machine.
+*   Save files (`savegame.bin`) are Python pickles; only load saves you created yourself.
+*   The "Smart Hints" and the CPU opponents are heuristics (greedy / job sequencing / knapsack variants), not a complete Slitherlink solver guarantee.
+
+## License
+MIT, see [LICENSE](LICENSE).
 
 ## Controls
 *   **Left Click**: Toggle edge (Line / Empty).

@@ -75,6 +75,9 @@ class GameState:
         self.undo_stack = []
         self.redo_stack = []
         
+        import time
+        self.start_time = time.time()
+        
         # self.solution_edges = set() # Set in _generate_clues
 
     def _assign_weights(self):
@@ -186,7 +189,6 @@ class GameState:
             
             # We need to build the graph for all possible nodes
             # A node u has neighbors v if (u,v) is valid add
-            
             # Optimisation: Build on demand or full build? Full build is safer for Dijkstra.
             for r in range(self.rows + 1):
                 for c in range(self.cols + 1):
@@ -632,7 +634,16 @@ class GameState:
             self.game_over = True
             self.winner = self.turn
             self.message = f"GAME OVER! {self.winner} Wins!"
-            self.stats_mgr.record_game(self.winner)
+            
+            # Calculate Stats
+            duration = 0
+            if hasattr(self, 'start_time'):
+                 import time
+                 duration = time.time() - self.start_time
+            
+            moves_count = len(self.undo_stack)
+            
+            self.stats_mgr.record_game(self.winner, time_taken=duration, moves_count=moves_count)
             return
 
         if not self.get_all_valid_moves():

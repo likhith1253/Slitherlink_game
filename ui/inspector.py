@@ -2,64 +2,87 @@ import tkinter as tk
 from ui.styles import *
 from ui.components import HoverButton, CardFrame
 from daa.sorting import heap_sort
+import time
 
-class SaveInspector(tk.Toplevel):
+class MatchHistoryInspector(tk.Toplevel):
     def __init__(self, master, game_state):
         super().__init__(master, bg=BG_COLOR)
-        self.title("Save File Inspector (Heap Sort)")
-        self.geometry("600x500")
+        self.title("Match History Inspector (Heap Sort)")
+        self.geometry("700x500")
         self.game_state = game_state
         
-        tk.Label(self, text="Heap Sort Inspector", font=FONT_TITLE, bg=BG_COLOR, fg=TEXT_COLOR).pack(pady=10)
-        tk.Label(self, text="Visualizing how Heap Sort organizes data for saving.", font=FONT_BODY, bg=BG_COLOR, fg=TEXT_DIM).pack(pady=(0, 20))
+        # Header
+        tk.Label(self, text="Match History", font=FONT_TITLE, bg=BG_COLOR, fg=TEXT_COLOR).pack(pady=10)
+        tk.Label(self, text="Real game records sorted using O(N log N) Heap Sort", font=FONT_BODY, bg=BG_COLOR, fg=TEXT_DIM).pack(pady=(0, 20))
         
-        # Split View
-        container = tk.Frame(self, bg=BG_COLOR)
-        container.pack(expand=True, fill=tk.BOTH, padx=20)
+        # Toolbar
+        toolbar = tk.Frame(self, bg=BG_COLOR)
+        toolbar.pack(fill=tk.X, padx=20, pady=5)
         
-        # Left: Unsorted
-        frame_left = CardFrame(container, padx=10, pady=10)
-        frame_left.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=5)
+        HoverButton(toolbar, text="Sort by Recent (Timestamp)", command=self.sort_by_recent, width=25).pack(side=tk.LEFT, padx=5)
+        HoverButton(toolbar, text="Sort by Fastest (Duration)", command=self.sort_by_duration, width=25).pack(side=tk.LEFT, padx=5)
+        HoverButton(toolbar, text="Sort by Moves", command=self.sort_by_moves, width=25).pack(side=tk.LEFT, padx=5)
         
-        tk.Label(frame_left, text="Raw Undo Stack", font=FONT_BODY, bg=CARD_BG, fg=ERROR_COLOR).pack()
-        self.txt_left = tk.Text(frame_left, height=15, width=30, bg=BG_COLOR, fg=TEXT_COLOR, font=FONT_SMALL, bd=0)
-        self.txt_left.pack(pady=10)
+        # Content Area
+        container = CardFrame(self, padx=10, pady=10)
+        container.pack(expand=True, fill=tk.BOTH, padx=20, pady=10)
         
-        # Right: Sorted
-        frame_right = CardFrame(container, padx=10, pady=10)
-        frame_right.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH, padx=5)
+        # Scrollable Text as List
+        self.list_area = tk.Text(container, bg=BG_COLOR, fg=TEXT_COLOR, font=FONT_SMALL, bd=0, state=tk.DISABLED)
+        self.list_area.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         
-        tk.Label(frame_right, text="Heap Sorted (By Time)", font=FONT_BODY, bg=CARD_BG, fg=SUCCESS_COLOR).pack()
-        self.txt_right = tk.Text(frame_right, height=15, width=30, bg=BG_COLOR, fg=TEXT_COLOR, font=FONT_SMALL, bd=0)
-        self.txt_right.pack(pady=10)
+        scrollbar = tk.Scrollbar(container, command=self.list_area.yview, bg=BG_COLOR)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.list_area.config(yscrollcommand=scrollbar.set)
         
+        # Close Button
         HoverButton(self, text="Close", command=self.destroy).pack(pady=20)
         
-        self.populate_data()
+        # Load Data
+        self.history_data = self.game_state.stats_mgr.stats.get("match_history", [])
+        self.current_sort = "None"
         
-    def populate_data(self):
-        # 1. Get Raw Data
-        stack = self.game_state.undo_stack[:]
+        self.refresh_list()
         
-        # To make it interesting, let's pretend it's shuffled or show indices
-        # Actually, let's just show the stack as is vs re-sorted explicitly
+    def refresh_list(self):
+        self.list_area.config(state=tk.NORMAL)
+        self.list_area.delete(1.0, tk.END)
         
-        items_to_sort = []
-        raw_text = ""
-        for i, item in enumerate(stack):
-            u, v, action = item
-            raw_text += f"Idx {i}: {action.upper()} {u}-{v}\n"
-            items_to_sort.append({'index': i, 'data': item})
+        if not self.history_data:
+            self.list_area.insert(tk.END, "\n   No matches recorded yet. Play a game to see stats!\n")
+            self.list_area.config(state=tk.DISABLED)
+            return
             
-        self.txt_left.insert(tk.END, raw_text if raw_text else "Empty Stack")
+        header = f"{'Result':<20} | {'Duration':<15} | {'Moves':<10} | {'Date':<25}\n"
+        header += "-" * 80 + "\n"
+        self.list_area.insert(tk.END, header)
         
-        # 2. Sort using Heap Sort (Showcase)
-        sorted_items = heap_sort(items_to_sort, key=lambda x: x['index'])
+        for record in self.history_data:
+            winner = record.get("winner", "Unknown")
+            duration = record.get("duration", 0)
+            moves = record.get("moves", 0)
+            timestamp = record.get("timestamp", 0)
+            
+            date_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
+            res_str = "WIN" if "Human" in winner else "LOSS"
+            
+            line = f"{res_str:<20} | {duration:.2f}s{'':<9} | {moves:<10} | {date_str:<25}\n"
+            self.list_area.insert(tk.END, line)
+            
+        self.list_area.config(state=tk.DISABLED)
         
-        sorted_text = ""
-        for item in sorted_items:
-             idx = item['index']
-             u, v, action = item['data']
-             sorted_text += f"Idx {idx}: {action.upper()} {u}-{v}\n"
-             
-        self.txt_right.insert(tk.END, sorted_text if sorted_text else "Empty Stack")
+    def sort_by_recent(self):
+        # Sort by timestamp DESCENDING (Newest first)
+        # Using heap_sort from daa.sorting
+        self.history_data = heap_sort(self.history_data, key=lambda x: x.get("timestamp", 0), reverse=True)
+        self.refresh_list()
+        
+    def sort_by_duration(self):
+        # Sort by duration ASCENDING (Fastest first)
+        self.history_data = heap_sort(self.history_data, key=lambda x: x.get("duration", float('inf')), reverse=False)
+        self.refresh_list()
+
+    def sort_by_moves(self):
+         # Sort by moves ASCENDING (Fewest moves first)
+        self.history_data = heap_sort(self.history_data, key=lambda x: x.get("moves", float('inf')), reverse=False)
+        self.refresh_list()
